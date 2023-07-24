@@ -1,0 +1,18 @@
+{
+    "_global": {
+      "_base": {
+        "instantiat": {
+          "data": {
+            "name": "Metallex",
+            "symbol":"MM",
+            "decimals":100,
+            "total_supply":1000000,
+            "cap":100000000000
+
+
+
+          }
+        }
+      }
+    }
+  }
