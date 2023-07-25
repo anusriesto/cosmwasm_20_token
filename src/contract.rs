@@ -140,3 +140,143 @@ pub fn execute_mint(
         .add_attribute("amount", amount);
     Ok(res)
 }
+
+pub fn query_token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
+    let info = TOKEN_INFO.load(deps.storage)?;
+    let res = TokenInfoResponse {
+        name: info.name,
+        symbol: info.symbol,
+        decimals: info.decimals,
+        total_supply: info.total_supply,
+    };
+    Ok(res)
+}
+
+pub fn query_balance(deps: Deps, address: String) -> StdResult<BalanceResponse> {
+    let address = deps.api.addr_validate(&address)?;
+    let balance = BALANCES
+        .may_load(deps.storage, &address)?
+        .unwrap_or_default();
+    Ok(BalanceResponse { balance })
+}
+
+
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    use cosmwasm_std::testing::{mock_dependencies,mock_env,mock_info};
+    use cosmwasm_std::{coins,Addr,from_binary,CosmosMsg,StdError,WasmMsg,Uint128};
+    fn get_balance<T: Into<String>>(deps: Deps, address: T) -> Uint128 {
+        query_balance(deps, address.into()).unwrap().balance}
+
+    fn do_instantiate_with_minter(
+        deps: DepsMut,
+        addr: &str,
+        amount: Uint128,
+        minter: &str,
+        cap: Option<Uint128>,
+    ) -> TokenInfoResponse {
+        _do_instantiate(
+            deps,
+            addr,
+            amount,
+            Some(MinterResponse {
+                minter: minter.to_string(),
+                cap,
+            }),
+        )
+    }
+
+    // this will set up the instantiation for other tests
+    fn do_instantiate(deps: DepsMut, addr: &str, amount: Uint128) -> TokenInfoResponse {
+        _do_instantiate(deps, addr, amount, None)
+    }
+
+    // this will set up the instantiation for other tests
+    fn _do_instantiate(
+        mut deps: DepsMut,
+        addr: &str,
+        amount: Uint128,
+        mint: Option<MinterResponse>,
+    ) -> TokenInfoResponse {
+        let instantiate_msg = InstantiateMsg {
+            name: "Auto Gen".to_string(),
+            symbol: "AUTO".to_string(),
+            decimals: 3,
+            initial_balances: vec![Cw20Coin {
+                address: addr.to_string(),
+                amount,
+        
+            }],
+            mint: mint.clone(),
+            marketing: None,
+            get_cap:Some(amount),
+        };
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+        let res = instantiate(deps.branch(), env, info, instantiate_msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        let meta = query_token_info(deps.as_ref()).unwrap();
+        assert_eq!(
+            meta,
+            TokenInfoResponse {
+                name: "Auto Gen".to_string(),
+                symbol: "AUTO".to_string(),
+                decimals: 3,
+                total_supply: amount,
+            }
+        );
+        assert_eq!(get_balance(deps.as_ref(), addr), amount);
+        meta
+    }
+
+    const PNG_HEADER: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+
+
+
+    #[test]
+    fn minting(){
+        let mut deps = mock_dependencies();
+            let amount = Uint128::new(11223344);
+            let minter = String::from("asmodat");
+            let limit = Uint128::new(511223344);
+            let instantiate_msg = InstantiateMsg {
+                name: "Cash Token".to_string(),
+                symbol: "CASH".to_string(),
+                decimals: 9,
+                initial_balances: vec![Cw20Coin {
+                    address: "addr0000".into(),
+                    amount,
+                }],
+                mint: Some(MinterResponse {
+                    minter: minter.clone(),
+                    cap: Some(limit),
+                }),
+                marketing: None,
+                get_cap:Some(limit)
+            };
+            let info = mock_info("creator", &[]);
+            let env = mock_env();
+            let res = instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
+            assert_eq!(0, res.messages.len());
+
+            assert_eq!(
+                query_token_info(deps.as_ref()).unwrap(),
+                TokenInfoResponse {
+                    name: "Cash Token".to_string(),
+                    symbol: "CASH".to_string(),
+                    decimals: 9,
+                    total_supply: amount,
+                }
+            );
+            assert_eq!(
+                get_balance(deps.as_ref(), "addr0000"),
+                Uint128::new(11223344)
+            );
+        
+        
+
+    }
+}
