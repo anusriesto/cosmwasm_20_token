@@ -33,5 +33,8 @@ pub enum ContractError {
         received_amount: Uint128,
         expected_amount: Uint128
     },
+    #[error("CannotExceedCap")]
+     CannotExceedCap {
+    },
 
 }
