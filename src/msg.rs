@@ -1,6 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{StdError, StdResult, Uint128,Addr,Binary};
-use cw20::{Cw20Coin, Logo, MinterResponse,};
+use cw20::{Cw20Coin, Logo, MinterResponse, Expiration,};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +24,7 @@ pub struct InstantiateMsg {
     pub mint: Option<MinterResponse>,
     pub marketing: Option<InstantiateMarketingInfo>,
     pub get_cap:Option<Uint128>,
+    //pub expires:Option<Expiration>
 }
 
 impl InstantiateMsg {

@@ -25,6 +25,9 @@ pub enum ContractError {
     #[error("NotAllowedMultipleDenoms")]
     NotAllowedMultipleDenoms {},
 
+    #[error("InvalidExpiration")]
+    InvalidExpiration{},
+
     #[error("TokenAddressMustBeWhitelisted")]
     TokenAddressMustBeWhitelisted {},
 
@@ -36,5 +39,7 @@ pub enum ContractError {
     #[error("CannotExceedCap")]
      CannotExceedCap {
     },
+    
+
 
 }

@@ -1,14 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::Order::Ascending;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128,
 };
 
 use cw2::set_contract_version;
 use cw20::{
-    BalanceResponse, Cw20Coin, Cw20ReceiveMsg, DownloadLogoResponse, EmbeddedLogo, Logo, LogoInfo,
-    MarketingInfoResponse, MinterResponse, TokenInfoResponse,
+    BalanceResponse, Cw20Coin,AllowanceResponse, Cw20ReceiveMsg, Expiration,
+     MinterResponse, TokenInfoResponse,
 };
 
 
@@ -16,7 +15,7 @@ use cw20::{
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
-    MinterData, TokenInfo, ALLOWANCES, ALLOWANCES_SPENDER, BALANCES, LOGO, MARKETING_INFO,
+    MinterData, TokenInfo, ALLOWANCES, ALLOWANCES_SPENDER, BALANCES,
     TOKEN_INFO,
 };
 
@@ -24,13 +23,12 @@ use crate::state::{
 const CONTRACT_NAME: &str = "crates.io:cw20-base";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const LOGO_SIZE_CAP: usize = 5 * 1024;
 
 
 
 
 
-
+//Initialise the account
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     mut deps: DepsMut,
@@ -76,7 +74,7 @@ pub fn create_accounts(
     deps: &mut DepsMut,
     accounts: &[Cw20Coin],
 ) -> Result<Uint128, ContractError> {
-    // validate_accounts(accounts)?;
+    
 
     let mut total_supply = Uint128::zero();
     for row in accounts {
@@ -88,12 +86,7 @@ pub fn create_accounts(
     Ok(total_supply)
 }
 
-// pub fn validate_accounts(accounts: &[Cw20Coin]) -> Result<(),StdError> {
-//     let mut addresses = accounts.iter().map(|c| &c.address).collect::<Vec<_>>();
-//     addresses.sort();
-//     addresses.dedup();
 
-// }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute_mint(
@@ -102,6 +95,7 @@ pub fn execute_mint(
     info: MessageInfo,
     recipient: String,
     amount: Uint128,
+    //expires:Option<Expiration>,
 ) -> Result<Response, ContractError> {
     let mut config = TOKEN_INFO
         .may_load(deps.storage)?
@@ -134,8 +128,23 @@ pub fn execute_mint(
         |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
     )?;
 
+    // let update_fn = |allow: Option<AllowanceResponse>| -> Result<_, _> {
+    //     let mut val = allow.unwrap_or_default();
+    //     if let Some(exp) = expires {
+    //         if exp.is_expired(&_env.block) {
+    //             return Err(ContractError::InvalidExpiration {});
+    //         }
+    //         val.expires = exp;
+    //     }
+    //     val.allowance =amount;
+    //     Ok(val)
+    // };
+    // ALLOWANCES.update(deps.storage, (&rcpt_addr,&rcpt_addr), update_fn)?;
+    // ALLOWANCES_SPENDER.update(deps.storage, (&rcpt_addr, &rcpt_addr), update_fn)?;
+
     let res = Response::new()
         .add_attribute("action", "mint")
+        .add_attribute("action", "expires")
         .add_attribute("to", recipient)
         .add_attribute("amount", amount);
     Ok(res)
@@ -166,6 +175,7 @@ pub fn query_balance(deps: Deps, address: String) -> StdResult<BalanceResponse> 
 mod tests{
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies,mock_env,mock_info};
+    use cw20::{Expiration};
     use cosmwasm_std::{coins,Addr,from_binary,CosmosMsg,StdError,WasmMsg,Uint128};
     fn get_balance<T: Into<String>>(deps: Deps, address: T) -> Uint128 {
         query_balance(deps, address.into()).unwrap().balance}
@@ -176,6 +186,7 @@ mod tests{
         amount: Uint128,
         minter: &str,
         cap: Option<Uint128>,
+        expires:Option<Expiration>
     ) -> TokenInfoResponse {
         _do_instantiate(
             deps,
@@ -185,11 +196,13 @@ mod tests{
                 minter: minter.to_string(),
                 cap,
             }),
+        //expires,
+    
         )
     }
 
     // this will set up the instantiation for other tests
-    fn do_instantiate(deps: DepsMut, addr: &str, amount: Uint128) -> TokenInfoResponse {
+    fn do_instantiate(deps: DepsMut, addr: &str, amount: Uint128,expires:Option<Expiration>) -> TokenInfoResponse {
         _do_instantiate(deps, addr, amount, None)
     }
 
@@ -199,6 +212,7 @@ mod tests{
         addr: &str,
         amount: Uint128,
         mint: Option<MinterResponse>,
+        //expires:Option<Expiration>,
     ) -> TokenInfoResponse {
         let instantiate_msg = InstantiateMsg {
             name: "Auto Gen".to_string(),
@@ -212,6 +226,7 @@ mod tests{
             mint: mint.clone(),
             marketing: None,
             get_cap:Some(amount),
+            //expires:expires.clone(),
         };
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -232,19 +247,67 @@ mod tests{
         meta
     }
 
-    const PNG_HEADER: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+    
 
+
+
+    // #[test]
+    // fn minting(){
+    //     let mut deps = mock_dependencies();
+    //     let info = mock_info("creator", &[]);
+    //     let env = mock_env();
+    //         let amount = Uint128::new(1000000);
+    //         let minter = String::from("anuj");
+    //         let limit = Uint128::new(10000000000);
+    //         let expired = Expiration::AtTime(env.block.time.plus_seconds(86400));
+    //         let instantiate_msg = InstantiateMsg {
+    //             name: "Mettalex".to_string(),
+    //             symbol: "W".to_string(),
+    //             decimals: 9,
+    //             initial_balances: vec![Cw20Coin {
+    //                 address: "addr000".into(),
+    //                 amount,
+    //             }],
+    //             mint: Some(MinterResponse {
+    //                 minter: minter.clone(),
+    //                 cap: Some(limit),
+    //             }),
+    //             marketing: None,
+    //             get_cap:Some(limit),
+    //             //expires:Some(expired),
+    //         };
+            
+    //         let res = instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
+    //         //assert_eq!(0, res.messages.len());
+
+    //         assert_eq!(
+    //             query_token_info(deps.as_ref()).unwrap(),
+    //             TokenInfoResponse {
+    //                 name: "Metallex".to_string(),
+    //                 symbol: "W".to_string(),
+    //                 decimals: 9,
+    //                 total_supply: amount,
+    //             }
+    //         );
+    //         assert_eq!(
+    //             get_balance(deps.as_ref(), "addr000"),
+    //             Uint128::new(1000000)
+    //         );
+        
+        
+
+    // }
 
 
     #[test]
     fn minting(){
         let mut deps = mock_dependencies();
-            let amount = Uint128::new(11223344);
+            let amount = Uint128::new(1000000);
             let minter = String::from("asmodat");
-            let limit = Uint128::new(511223344);
+            let limit = Uint128::new(1000000000);
             let instantiate_msg = InstantiateMsg {
-                name: "Cash Token".to_string(),
-                symbol: "CASH".to_string(),
+                name: "Metallex Token".to_string(),
+                symbol: "META".to_string(),
                 decimals: 9,
                 initial_balances: vec![Cw20Coin {
                     address: "addr0000".into(),
@@ -265,15 +328,15 @@ mod tests{
             assert_eq!(
                 query_token_info(deps.as_ref()).unwrap(),
                 TokenInfoResponse {
-                    name: "Cash Token".to_string(),
-                    symbol: "CASH".to_string(),
+                    name: "Metallex Token".to_string(),
+                    symbol: "META".to_string(),
                     decimals: 9,
                     total_supply: amount,
                 }
             );
             assert_eq!(
                 get_balance(deps.as_ref(), "addr0000"),
-                Uint128::new(11223344)
+                Uint128::new(1000000)
             );
         
         
